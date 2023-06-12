@@ -1,4 +1,4 @@
-resource "diff-state_items" "example" {
+resource "values_diff" "example" {
   values = {
     "1" = "a"
     "2" = "b"

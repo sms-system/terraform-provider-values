@@ -22,7 +22,7 @@ func NewDiffStateItemsResource() resource.Resource {
 type DiffStateItemsResource struct{}
 
 func (n *DiffStateItemsResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_items"
+	resp.TypeName = req.ProviderTypeName + "_diff"
 }
 
 func (n *DiffStateItemsResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
