@@ -6,7 +6,7 @@ import (
 )
 
 func testAccProtoV6ProviderFactories() map[string]func() (tfprotov6.ProviderServer, error) {
-	return map[string]func() (tfprotov6.ProviderServer, error) {
-  		"diff-state": providerserver.NewProtocol6WithError(New()),
+	return map[string]func() (tfprotov6.ProviderServer, error){
+		"diff-state": providerserver.NewProtocol6WithError(New()),
 	}
 }
