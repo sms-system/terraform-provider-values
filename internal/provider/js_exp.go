@@ -2,44 +2,45 @@ package provider
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/dop251/goja"
 )
 
-func canCommitValue(ctx context.Context, data *diffStateItemsModel) (bool, string, error) {
+type CommitExpError struct {
+	Message string
+	Err     error
+}
+
+func (e *CommitExpError) Error() string {
+	return fmt.Sprintf("%s in `commit_exp`", e.Message)
+}
+
+func (e *CommitExpError) Unwrap() error {
+	return e.Err
+}
+
+func canCommitValue(ctx context.Context, data *diffModel) (bool, error) {
 	prog, err := goja.Compile("", data.CommitExp.ValueString(), true)
 	if err != nil {
-		return false, "JavaScript Syntax Error in commit_exp", err
+		return false, &CommitExpError{"JavaScript Syntax Error", err}
 	}
 
 	vm := goja.New()
 
 	vm.Set("is_initiated", data.IsInitiated.ValueBool())
 
-	var values map[string]string
-	data.Values.ElementsAs(ctx, &values, false)
-	vm.Set("values", values)
+	vm.Set("values", asValue[stringMap](ctx, data.Values))
+	vm.Set("last_values", asValue[stringMap](ctx, data.LastValues))
 
-	var last_values map[string]string
-	data.LastValues.ElementsAs(ctx, &last_values, false)
-	vm.Set("last_values", last_values)
-
-	var created []string
-	data.Created.ElementsAs(ctx, &created, false)
-	vm.Set("created", created)
-
-	var updated []string
-	data.Updated.ElementsAs(ctx, &updated, false)
-	vm.Set("updated", updated)
-
-	var deleted []string
-	data.Deleted.ElementsAs(ctx, &deleted, false)
-	vm.Set("deleted", deleted)
+	vm.Set("created", asValue[stringList](ctx, data.Created))
+	vm.Set("updated", asValue[stringList](ctx, data.Updated))
+	vm.Set("deleted", asValue[stringList](ctx, data.Deleted))
 
 	result, err := vm.RunProgram(prog)
 	if err != nil {
-		return false, "JavaScript Runtime Error in commit_exp", err
+		return false, &CommitExpError{"JavaScript Runtime Error", err}
 	}
 
-	return result.Export() == true, "", nil
+	return result.Export() == true, nil
 }

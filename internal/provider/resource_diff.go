@@ -2,7 +2,7 @@ package provider
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -13,19 +13,19 @@ import (
 	"golang.org/x/exp/maps"
 )
 
-var _ resource.Resource = &DiffStateItemsResource{}
+var _ resource.Resource = &DiffResource{}
 
-func NewDiffStateItemsResource() resource.Resource {
-	return &DiffStateItemsResource{}
+func NewDiffResource() resource.Resource {
+	return &DiffResource{}
 }
 
-type DiffStateItemsResource struct{}
+type DiffResource struct{}
 
-func (n *DiffStateItemsResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+func (n *DiffResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
 	resp.TypeName = req.ProviderTypeName + "_diff"
 }
 
-func (n *DiffStateItemsResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
+func (n *DiffResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		MarkdownDescription: `
 			The resource detects changes in values using their identifiers.
@@ -90,7 +90,7 @@ func (n *DiffStateItemsResource) Schema(ctx context.Context, req resource.Schema
 	}
 }
 
-type diffStateItemsModel struct {
+type diffModel struct {
 	Id types.String `tfsdk:"id"`
 
 	IsInitiated types.Bool `tfsdk:"is_initiated"`
@@ -106,8 +106,8 @@ type diffStateItemsModel struct {
 	IsValueCommited types.Bool   `tfsdk:"is_value_commited"`
 }
 
-func (r *DiffStateItemsResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var data *diffStateItemsModel
+func (r *DiffResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	var data *diffModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
 
 	if resp.Diagnostics.HasError() {
@@ -123,11 +123,11 @@ func (r *DiffStateItemsResource) Create(ctx context.Context, req resource.Create
 	data.Deleted, _ = types.ListValueFrom(ctx, types.StringType, []string{})
 	data.LastValues, _ = types.MapValueFrom(ctx, types.StringType, map[string]string{})
 
-	isValueCommited, error_msg, err := canCommitValue(ctx, data)
+	isValueCommited, err := canCommitValue(ctx, data)
 	if err != nil {
 		resp.Diagnostics.AddError(
-			error_msg,
-			fmt.Sprint(err),
+			err.Error(),
+			errors.Unwrap(err).Error(),
 		)
 		return
 	}
@@ -137,11 +137,11 @@ func (r *DiffStateItemsResource) Create(ctx context.Context, req resource.Create
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
-func (r *DiffStateItemsResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+func (r *DiffResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 }
 
-func (r *DiffStateItemsResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var data, state *diffStateItemsModel
+func (r *DiffResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	var data, state *diffModel
 
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
@@ -165,6 +165,7 @@ func (r *DiffStateItemsResource) Update(ctx context.Context, req resource.Update
 	updated := []string{}
 	deleted := []string{}
 
+	// TODO: Extract to func
 	for k, v := range currentItems {
 		val, ok := previousItems[k]
 		if !ok {
@@ -186,11 +187,11 @@ func (r *DiffStateItemsResource) Update(ctx context.Context, req resource.Update
 	data.Updated, _ = types.ListValueFrom(ctx, types.StringType, updated)
 	data.Deleted, _ = types.ListValueFrom(ctx, types.StringType, deleted)
 
-	isValueCommited, error_msg, err := canCommitValue(ctx, data)
+	isValueCommited, err := canCommitValue(ctx, data)
 	if err != nil {
 		resp.Diagnostics.AddError(
-			error_msg,
-			fmt.Sprint(err),
+			err.Error(),
+			errors.Unwrap(err).Error(),
 		)
 		return
 	}
@@ -200,5 +201,5 @@ func (r *DiffStateItemsResource) Update(ctx context.Context, req resource.Update
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
-func (r *DiffStateItemsResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+func (r *DiffResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 }

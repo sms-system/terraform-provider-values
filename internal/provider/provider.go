@@ -9,16 +9,18 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 )
 
-var _ provider.Provider = &DiffStateProvider{}
+var _ provider.Provider = &ValuesProvider{}
 
-type DiffStateProvider struct {
+type ValuesProvider struct {
+	version string
 }
 
-func (p *DiffStateProvider) Metadata(ctx context.Context, req provider.MetadataRequest, resp *provider.MetadataResponse) {
+func (p *ValuesProvider) Metadata(ctx context.Context, req provider.MetadataRequest, resp *provider.MetadataResponse) {
 	resp.TypeName = "values"
+	resp.Version = p.version
 }
 
-func (p *DiffStateProvider) Schema(ctx context.Context, req provider.SchemaRequest, resp *provider.SchemaResponse) {
+func (p *ValuesProvider) Schema(ctx context.Context, req provider.SchemaRequest, resp *provider.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		MarkdownDescription: `
 			The provider detects changes between values.
@@ -26,19 +28,21 @@ func (p *DiffStateProvider) Schema(ctx context.Context, req provider.SchemaReque
 	}
 }
 
-func (p *DiffStateProvider) Configure(context.Context, provider.ConfigureRequest, *provider.ConfigureResponse) {
+func (p *ValuesProvider) Configure(context.Context, provider.ConfigureRequest, *provider.ConfigureResponse) {
 }
 
-func (p *DiffStateProvider) Resources(ctx context.Context) []func() resource.Resource {
+func (p *ValuesProvider) Resources(ctx context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
-		NewDiffStateItemsResource,
+		NewDiffResource,
 	}
 }
 
-func (p *DiffStateProvider) DataSources(ctx context.Context) []func() datasource.DataSource {
+func (p *ValuesProvider) DataSources(ctx context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{}
 }
 
-func New() provider.Provider {
-	return &DiffStateProvider{}
+func New(version string) func() provider.Provider {
+	return func() provider.Provider {
+		return &ValuesProvider{version}
+	}
 }
