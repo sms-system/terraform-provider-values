@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -161,26 +162,7 @@ func (r *DiffResource) Update(ctx context.Context, req resource.UpdateRequest, r
 	currentItems := current.Elements()
 	previousItems := previous.Elements()
 
-	created := []string{}
-	updated := []string{}
-	deleted := []string{}
-
-	// TODO: Extract to func
-	for k, v := range currentItems {
-		val, ok := previousItems[k]
-		if !ok {
-			created = append(created, k)
-		} else if v != val {
-			updated = append(updated, k)
-		}
-	}
-
-	for k := range previousItems {
-		_, ok := currentItems[k]
-		if !ok {
-			deleted = append(deleted, k)
-		}
-	}
+	created, updated, deleted := calculateDiff(currentItems, previousItems)
 
 	data.LastValues, _ = types.MapValueFrom(ctx, types.StringType, previousItems)
 	data.Created, _ = types.ListValueFrom(ctx, types.StringType, created)
@@ -202,4 +184,29 @@ func (r *DiffResource) Update(ctx context.Context, req resource.UpdateRequest, r
 }
 
 func (r *DiffResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+}
+
+func calculateDiff(currentItems, previousItems map[string]attr.Value) ([]string, []string, []string) {
+	created := []string{}
+	updated := []string{}
+	deleted := []string{}
+
+	// TODO: Extract to func
+	for k, v := range currentItems {
+		val, ok := previousItems[k]
+		if !ok {
+			created = append(created, k)
+		} else if v != val {
+			updated = append(updated, k)
+		}
+	}
+
+	for k := range previousItems {
+		_, ok := currentItems[k]
+		if !ok {
+			deleted = append(deleted, k)
+		}
+	}
+
+	return created, updated, deleted
 }
