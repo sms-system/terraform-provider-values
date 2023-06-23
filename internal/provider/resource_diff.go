@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"errors"
+	"sort"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -14,7 +15,7 @@ import (
 	"golang.org/x/exp/maps"
 )
 
-var _ resource.Resource = &DiffResource{}
+var _ resource.ResourceWithModifyPlan = &DiffResource{}
 
 func NewDiffResource() resource.Resource {
 	return &DiffResource{}
@@ -115,14 +116,7 @@ func (r *DiffResource) Create(ctx context.Context, req resource.CreateRequest, r
 		return
 	}
 
-	data.Id = types.StringValue("diff")
-
-	data.IsInitiated = types.BoolValue(true)
-
-	data.Created, _ = types.ListValueFrom(ctx, types.StringType, maps.Keys(data.Values.Elements()))
-	data.Updated, _ = types.ListValueFrom(ctx, types.StringType, []string{})
-	data.Deleted, _ = types.ListValueFrom(ctx, types.StringType, []string{})
-	data.LastValues, _ = types.MapValueFrom(ctx, types.StringType, map[string]string{})
+	fillDataForCreate(ctx, data)
 
 	isValueCommited, err := canCommitValue(ctx, data)
 	if err != nil {
@@ -151,23 +145,7 @@ func (r *DiffResource) Update(ctx context.Context, req resource.UpdateRequest, r
 		return
 	}
 
-	data.IsInitiated = types.BoolValue(false)
-
-	current := data.Values
-	previous := state.Values
-	if !state.IsValueCommited.ValueBool() {
-		previous = state.LastValues
-	}
-
-	currentItems := current.Elements()
-	previousItems := previous.Elements()
-
-	created, updated, deleted := calculateDiff(currentItems, previousItems)
-
-	data.LastValues, _ = types.MapValueFrom(ctx, types.StringType, previousItems)
-	data.Created, _ = types.ListValueFrom(ctx, types.StringType, created)
-	data.Updated, _ = types.ListValueFrom(ctx, types.StringType, updated)
-	data.Deleted, _ = types.ListValueFrom(ctx, types.StringType, deleted)
+	fillDataForUpdate(ctx, data, state)
 
 	isValueCommited, err := canCommitValue(ctx, data)
 	if err != nil {
@@ -186,12 +164,70 @@ func (r *DiffResource) Update(ctx context.Context, req resource.UpdateRequest, r
 func (r *DiffResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 }
 
+func (r *DiffResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	if req.Plan.Raw.IsNull() {
+		return
+	}
+	var data, state *diffModel
+
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	data.Id = types.StringValue("diff")
+	if req.State.Raw.IsNull() {
+		fillDataForCreate(ctx, data)
+	} else if !req.State.Raw.Equal(req.Plan.Raw) {
+		fillDataForUpdate(ctx, data, state)
+	}
+
+	resp.Diagnostics.Append(resp.Plan.Set(ctx, &data)...)
+}
+
+func fillDataForCreate(ctx context.Context, data *diffModel) {
+	data.IsInitiated = types.BoolValue(true)
+
+	created := maps.Keys(data.Values.Elements())
+	sort.Strings(created)
+
+	data.Created, _ = types.ListValueFrom(ctx, types.StringType, created)
+	data.Updated, _ = types.ListValueFrom(ctx, types.StringType, []string{})
+	data.Deleted, _ = types.ListValueFrom(ctx, types.StringType, []string{})
+	data.LastValues, _ = types.MapValueFrom(ctx, types.StringType, map[string]string{})
+}
+
+func fillDataForUpdate(ctx context.Context, data, state *diffModel) {
+	data.IsInitiated = types.BoolValue(false)
+
+	current := data.Values
+	previous := state.Values
+	if !state.IsValueCommited.ValueBool() {
+		previous = state.LastValues
+	}
+
+	currentItems := current.Elements()
+	previousItems := previous.Elements()
+
+	created, updated, deleted := calculateDiff(currentItems, previousItems)
+
+	sort.Strings(created)
+	sort.Strings(updated)
+	sort.Strings(deleted)
+
+	data.LastValues, _ = types.MapValueFrom(ctx, types.StringType, previousItems)
+	data.Created, _ = types.ListValueFrom(ctx, types.StringType, created)
+	data.Updated, _ = types.ListValueFrom(ctx, types.StringType, updated)
+	data.Deleted, _ = types.ListValueFrom(ctx, types.StringType, deleted)
+}
+
 func calculateDiff(currentItems, previousItems map[string]attr.Value) ([]string, []string, []string) {
 	created := []string{}
 	updated := []string{}
 	deleted := []string{}
 
-	// TODO: Extract to func
 	for k, v := range currentItems {
 		val, ok := previousItems[k]
 		if !ok {
