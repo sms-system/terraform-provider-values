@@ -20,13 +20,9 @@ resource "values_diff" "example" {
     "3" = "c"
   }
 
-  commit_exp = <<-EOT
-    is_initiated || [...created, ...updated].length <= 1
-  EOT
-
   lifecycle {
     postcondition {
-      condition     = self.is_value_commited
+      condition     = self.is_initiated || length(concat(self.created, self.updated)) <= 1
       error_message = "Created or updated more than 1 item"
     }
   }
@@ -40,16 +36,11 @@ resource "values_diff" "example" {
 
 - `values` (Map of String) Items for tracking differences. The keys are here to identify a unique element
 
-### Optional
-
-- `commit_exp` (String) JS expression. If it returns `true`, `last_values` will be updated. Aviable global variables: `values`, `last_values`, `created`, `updated`, `deleted`, `is_initiated`. Default: `"true"`
-
 ### Read-Only
 
 - `created` (List of String) New added items
 - `deleted` (List of String) Deleted items
 - `id` (String) Identifier of resource
 - `is_initiated` (Boolean) `true` on resource creation
-- `is_value_commited` (Boolean) `true` on successful `last_values` update
 - `last_values` (Map of String) Items from previous state
 - `updated` (List of String) Items whose value has been changed

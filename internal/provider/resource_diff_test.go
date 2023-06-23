@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"regexp"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
@@ -33,8 +34,6 @@ func TestAccDiffResource(t *testing.T) {
 					resource.TestCheckResourceAttr("values_diff.test", "updated.#", "0"),
 
 					resource.TestCheckResourceAttr("values_diff.test", "deleted.#", "0"),
-
-					resource.TestCheckResourceAttr("values_diff.test", "is_value_commited", "true"),
 				),
 			},
 			{
@@ -46,28 +45,14 @@ func TestAccDiffResource(t *testing.T) {
 						"5" = "e"
 					}
 
-					commit_exp = "[...created, ...updated].length <= 1"
+					lifecycle {
+					  postcondition {
+						condition     = self.is_initiated || length(concat(self.created, self.updated)) <= 1
+						error_message = "Created or updated more than 1 item"
+					  }
+					}
 				}`,
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("values_diff.test", "is_initiated", "false"),
-
-					resource.TestCheckResourceAttr("values_diff.test", "last_values.%", "3"),
-					resource.TestCheckResourceAttr("values_diff.test", "last_values.1", "a"),
-					resource.TestCheckResourceAttr("values_diff.test", "last_values.2", "b"),
-					resource.TestCheckResourceAttr("values_diff.test", "last_values.3", "c"),
-
-					resource.TestCheckResourceAttr("values_diff.test", "created.#", "2"),
-					resource.TestCheckTypeSetElemAttr("values_diff.test", "created.*", "4"),
-					resource.TestCheckTypeSetElemAttr("values_diff.test", "created.*", "5"),
-
-					resource.TestCheckResourceAttr("values_diff.test", "updated.#", "1"),
-					resource.TestCheckTypeSetElemAttr("values_diff.test", "updated.*", "3"),
-
-					resource.TestCheckResourceAttr("values_diff.test", "deleted.#", "1"),
-					resource.TestCheckTypeSetElemAttr("values_diff.test", "deleted.*", "2"),
-
-					resource.TestCheckResourceAttr("values_diff.test", "is_value_commited", "false"),
-				),
+				ExpectError: regexp.MustCompile("Created or updated more than 1 item"),
 			},
 			{
 				Config: `resource "values_diff" "test" {
@@ -75,7 +60,12 @@ func TestAccDiffResource(t *testing.T) {
 						"1" = "a"
 					}
 
-					commit_exp = "[...created, ...updated].length === 0"
+					lifecycle {
+					  postcondition {
+						condition     = self.is_initiated || length(concat(self.created, self.updated)) <= 1
+						error_message = "Created or updated more than 1 item"
+					  }
+					}
 				}`,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("values_diff.test", "is_initiated", "false"),
@@ -92,8 +82,6 @@ func TestAccDiffResource(t *testing.T) {
 					resource.TestCheckResourceAttr("values_diff.test", "deleted.#", "2"),
 					resource.TestCheckTypeSetElemAttr("values_diff.test", "deleted.*", "2"),
 					resource.TestCheckTypeSetElemAttr("values_diff.test", "deleted.*", "3"),
-
-					resource.TestCheckResourceAttr("values_diff.test", "is_value_commited", "true"),
 				),
 			},
 			{
@@ -114,8 +102,6 @@ func TestAccDiffResource(t *testing.T) {
 					resource.TestCheckTypeSetElemAttr("values_diff.test", "updated.*", "1"),
 
 					resource.TestCheckResourceAttr("values_diff.test", "deleted.#", "0"),
-
-					resource.TestCheckResourceAttr("values_diff.test", "is_value_commited", "true"),
 				),
 			},
 		},

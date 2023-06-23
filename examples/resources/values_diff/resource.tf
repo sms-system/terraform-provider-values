@@ -5,13 +5,9 @@ resource "values_diff" "example" {
     "3" = "c"
   }
 
-  commit_exp = <<-EOT
-    is_initiated || [...created, ...updated].length <= 1
-  EOT
-
   lifecycle {
     postcondition {
-      condition     = self.is_value_commited
+      condition     = self.is_initiated || length(concat(self.created, self.updated)) <= 1
       error_message = "Created or updated more than 1 item"
     }
   }

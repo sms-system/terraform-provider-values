@@ -2,14 +2,12 @@ package provider
 
 import (
 	"context"
-	"errors"
 	"sort"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"golang.org/x/exp/maps"
@@ -76,18 +74,6 @@ func (n *DiffResource) Schema(ctx context.Context, req resource.SchemaRequest, r
 				ElementType: types.StringType,
 				Computed:    true,
 			},
-
-			"commit_exp": schema.StringAttribute{
-				MarkdownDescription: "JS expression. If it returns `true`, `last_values` will be updated. Aviable global variables: `values`, `last_values`, `created`, `updated`, `deleted`, `is_initiated`. Default: `\"true\"`",
-				Optional:            true,
-				Computed:            true,
-				Default:             stringdefault.StaticString("true"),
-			},
-
-			"is_value_commited": schema.BoolAttribute{
-				MarkdownDescription: "`true` on successful `last_values` update",
-				Computed:            true,
-			},
 		},
 	}
 }
@@ -103,9 +89,6 @@ type diffModel struct {
 	Created types.List `tfsdk:"created"`
 	Updated types.List `tfsdk:"updated"`
 	Deleted types.List `tfsdk:"deleted"`
-
-	CommitExp       types.String `tfsdk:"commit_exp"`
-	IsValueCommited types.Bool   `tfsdk:"is_value_commited"`
 }
 
 func (r *DiffResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -117,17 +100,6 @@ func (r *DiffResource) Create(ctx context.Context, req resource.CreateRequest, r
 	}
 
 	fillDataForCreate(ctx, data)
-
-	isValueCommited, err := canCommitValue(ctx, data)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			err.Error(),
-			errors.Unwrap(err).Error(),
-		)
-		return
-	}
-
-	data.IsValueCommited = types.BoolValue(isValueCommited)
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
@@ -146,17 +118,6 @@ func (r *DiffResource) Update(ctx context.Context, req resource.UpdateRequest, r
 	}
 
 	fillDataForUpdate(ctx, data, state)
-
-	isValueCommited, err := canCommitValue(ctx, data)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			err.Error(),
-			errors.Unwrap(err).Error(),
-		)
-		return
-	}
-
-	data.IsValueCommited = types.BoolValue(isValueCommited)
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
@@ -204,9 +165,6 @@ func fillDataForUpdate(ctx context.Context, data, state *diffModel) {
 
 	current := data.Values
 	previous := state.Values
-	if !state.IsValueCommited.ValueBool() {
-		previous = state.LastValues
-	}
 
 	currentItems := current.Elements()
 	previousItems := previous.Elements()
